@@ -16,6 +16,8 @@
         </style>
     </head>
     <body class="antialiased">
-
+        @isset($status)
+            <span>{{$status}}</span>
+        @endisset
     </body>
 </html>
