@@ -32,6 +32,11 @@
                     <label for="cost" class="form-label">Себестоимость</label>
                     <input type="number" class="form-control" id="cost" name="costPrice">
                 </div>
+                <div class="mb-3">
+                    <label for="leadId" class="form-label">Номер сделки</label>
+                    <input type="number" class="form-control" id="leadId" name="leadId" value="{{$lead}}" >
+                </div>
+
                 <button type="submit" class="btn btn-primary">Добавить</button>
             </form>
         </div>

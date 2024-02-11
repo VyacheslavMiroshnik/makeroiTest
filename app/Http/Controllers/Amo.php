@@ -18,6 +18,7 @@ use AmoCRM\Models\CustomFieldsValues\ValueModels\TextCustomFieldValueModel;
 use AmoCRM\Models\LeadModel;
 use Illuminate\Http\Request;
 use AmoCRM\Client\AmoCRMApiClient;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use League\OAuth2\Client\Token\AccessToken;
 use Psy\Util\Json;
@@ -44,15 +45,14 @@ class Amo extends Controller
     * */
     public function leads(Request $request)
     {
-        $nameLead = $request->lead ??'test';
-        $price  = +$request->price ?? 0;
-        $costPrice  = +$request->costPrice ?? 0;
         $amoClient = self::init();
         $rowToken = json_decode(Storage::disk('local')->get('token.json'),1);
         $token = new AccessToken($rowToken);
         $amoClient->setAccessToken($token);
         $leadsService = $amoClient->leads();
-        $lead = self::createLead($price,$nameLead,$costPrice);
+        $lead = new LeadModel();
+        $lead->setCustomFieldsValues(new CustomFieldsValuesCollection());
+        $lead = self::createOrUpdateLead($lead,$request);
         try {
             $lead = $leadsService->addOne($lead);
         } catch (AmoCRMApiException $e) {
@@ -81,13 +81,15 @@ class Amo extends Controller
     /*
    * Шаблон  для создания сделки
    * */
-    private function createLead($price,$leadName,$costPrice)
+    private function createLead(LeadModel $lead, $request)
     {
+        $nameLead = $request->lead ??'test';
+        $price  = +$request->price ?? 0;
+        $costPrice  = +$request->costPrice ?? 0;
         $profit = $price-$costPrice;
         $costFieldId = 62291;
         $profitFieldId = 62341;
-        $lead = new LeadModel();
-        $leadCustomFieldsValues = new CustomFieldsValuesCollection();
+        $leadCustomFieldsValues = $lead->getCustomFieldsValues();
         $numericFirstField = new NumericCustomFieldValuesModel();
         $numericFirstField->setFieldId($costFieldId);
         $numericFirstField->setValues(
@@ -103,28 +105,69 @@ class Amo extends Controller
         $leadCustomFieldsValues->add($numericFirstField);
         $leadCustomFieldsValues->add($numericSecondField);
         $lead->setCustomFieldsValues($leadCustomFieldsValues);
-        $lead->setName($leadName);
+        $lead->setName($nameLead);
         $lead->setPrice($price);
         return $lead;
     }
-
-    function update()
+    function update(Request $request)
     {
+        $leadId= $request->leadId;
         $amoClient = self::init();
         $rowToken = json_decode(Storage::disk('local')->get('token.json'), 1);
         $token = new AccessToken($rowToken);
         $amoClient->setAccessToken($token);
         $leadsService = $amoClient->leads();
-        $leadsFilter = new LeadsFilter();
-        $leadsFilter->setIds([46339])
-            ->setResponsibleUserId([31556334]);
             //Получим сделки по фильтру и с полем with=is_price_modified_by_robot,loss_reason,contacts
         try {
-            $leads = $leadsService->get($leadsFilter);
+            $lead = $leadsService->getOne($leadId,[])->toArray();
         } catch (AmoCRMApiException $e) {
-            echo $e->getMessage();
-            die;
+            return view('welcome',['error'=>'Нет такой сделки']);
         }
-        return view('update',['resp'=>json_encode($leads)]);
+        $price = $lead['price'];
+        $name = $lead['name'];
+        $costPrice = $lead['custom_fields_values'][0]['values'][0]['value'];
+                return view('welcome',['lead'=>['price'=>$price,'name'=>$name,'costPrice'=>$costPrice,'id'=>$leadId]]);
+  }
+  function updateLead(Request $request)
+  {
+      $leadId = +$request->leadId;
+      $amoClient = self::init();
+      $rowToken = json_decode(Storage::disk('local')->get('token.json'), 1);
+      $token = new AccessToken($rowToken);
+      $amoClient->setAccessToken($token);
+      $leadsService = $amoClient->leads();
+      $costFieldId = 62291;
+      $profitFieldId = 62341;
+      $nameLead = $request->lead ??'test';
+      $price  = +$request->price ?? 0;
+      $costPrice  = +$request->costPrice ?? 0;
+      $profit = $price-$costPrice;
+      $lead = $leadsService->getOne($leadId, []);
+      $customFields = $lead->getCustomFieldsValues();
+      $lead->setName($nameLead);
+      $lead->setPrice($price);
+      foreach ($customFields as $customFieldValues) {
+           switch ($customFieldValues->getFieldId())
+           {
+               case $costFieldId:
+                   $customFieldValue = $customFieldValues->getValues()->first();
+                   $customFieldValue->setValue($costPrice);
+                   break;
+
+               case $profitFieldId:
+                   $customFieldValue = $customFieldValues->getValues()->first();
+                   $customFieldValue->setValue($profit);
+                   break;
+           }
+      }
+      $lead->setCustomFieldsValues($customFields);
+
+      try {
+          $amoClient->leads()->updateOne($lead);
+      } catch (AmoCRMApiException $e) {
+          printError($e);
+          die;
+      }
+      return view('welcome', ['response' => 'ok']);
   }
 }

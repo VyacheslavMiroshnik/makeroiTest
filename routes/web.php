@@ -18,5 +18,6 @@ Route::get('/', function () {
 })->name('welcome');
 Route::get('/api/credential',[\App\Http\Controllers\Amo::class,'authorized'])->name('authorized');
 Route::post('/leads',[\App\Http\Controllers\Amo::class,'leads'])->name('leads');
-Route::get('/update',[\App\Http\Controllers\Amo::class,'update'])->name('update');
-;
+Route::post('/update',[\App\Http\Controllers\Amo::class,'update'])->name('update');
+Route::post('/update/lead',[\App\Http\Controllers\Amo::class,'updateLead'])->name('update.leads');
+
