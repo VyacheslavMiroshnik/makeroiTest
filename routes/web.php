@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
-});
+})->name('welcome');
 Route::get('/api/credential',[\App\Http\Controllers\Amo::class,'authorized'])->name('authorized');
+Route::post('/leads',[\App\Http\Controllers\Amo::class,'leads'])->name('leads');
 ;
