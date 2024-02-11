@@ -18,4 +18,5 @@ Route::get('/', function () {
 })->name('welcome');
 Route::get('/api/credential',[\App\Http\Controllers\Amo::class,'authorized'])->name('authorized');
 Route::post('/leads',[\App\Http\Controllers\Amo::class,'leads'])->name('leads');
+Route::get('/update',[\App\Http\Controllers\Amo::class,'update'])->name('update');
 ;

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use AmoCRM\Collections\CustomFieldsValuesCollection;
 use AmoCRM\EntitiesServices\Leads;
 use AmoCRM\Exceptions\AmoCRMApiException;
+use AmoCRM\Filters\LeadsFilter;
 use AmoCRM\Filters\TasksFilter;
 use AmoCRM\Models\CustomFields\NumericCustomFieldModel;
 use AmoCRM\Models\CustomFieldsValues\NumericCustomFieldValuesModel;
@@ -110,11 +111,20 @@ class Amo extends Controller
     function update()
     {
         $amoClient = self::init();
-        $rowToken = json_decode(Storage::disk('local')->get('token.json'),1);
+        $rowToken = json_decode(Storage::disk('local')->get('token.json'), 1);
         $token = new AccessToken($rowToken);
         $amoClient->setAccessToken($token);
-        $taskFilter = new TasksFilter()->
         $leadsService = $amoClient->leads();
-        $leadsService->pa
-    }
+        $leadsFilter = new LeadsFilter();
+        $leadsFilter->setIds([46339])
+            ->setResponsibleUserId([31556334]);
+            //Получим сделки по фильтру и с полем with=is_price_modified_by_robot,loss_reason,contacts
+        try {
+            $leads = $leadsService->get($leadsFilter);
+        } catch (AmoCRMApiException $e) {
+            echo $e->getMessage();
+            die;
+        }
+        return view('update',['resp'=>json_encode($leads)]);
+  }
 }
