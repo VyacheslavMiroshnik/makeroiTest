@@ -18,6 +18,7 @@ use AmoCRM\Models\CustomFieldsValues\ValueModels\TextCustomFieldValueModel;
 use AmoCRM\Models\LeadModel;
 use Illuminate\Http\Request;
 use AmoCRM\Client\AmoCRMApiClient;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use League\OAuth2\Client\Token\AccessToken;
@@ -50,9 +51,7 @@ class Amo extends Controller
         $token = new AccessToken($rowToken);
         $amoClient->setAccessToken($token);
         $leadsService = $amoClient->leads();
-        $lead = new LeadModel();
-        $lead->setCustomFieldsValues(new CustomFieldsValuesCollection());
-        $lead = self::createOrUpdateLead($lead,$request);
+        $lead = self::createLead($request);
         try {
             $lead = $leadsService->addOne($lead);
         } catch (AmoCRMApiException $e) {
@@ -81,15 +80,16 @@ class Amo extends Controller
     /*
    * Шаблон  для создания сделки
    * */
-    private function createLead(LeadModel $lead, $request)
+    private function createLead( $request)
     {
-        $nameLead = $request->lead ??'test';
-        $price  = +$request->price ?? 0;
-        $costPrice  = +$request->costPrice ?? 0;
-        $profit = $price-$costPrice;
+        $nameLead = $request->name ??$request['name'] ?? 'test';
+        $price  = (int)($request->price ?? $request['price'] ?? 0);
+        $costPrice  = (int)($request->costPrice ?? $request['costPrice'] ?? 0);
+        $profit = $price - $costPrice;
         $costFieldId = 62291;
         $profitFieldId = 62341;
-        $leadCustomFieldsValues = $lead->getCustomFieldsValues();
+        $lead = new LeadModel();
+        $leadCustomFieldsValues = new CustomFieldsValuesCollection();
         $numericFirstField = new NumericCustomFieldValuesModel();
         $numericFirstField->setFieldId($costFieldId);
         $numericFirstField->setValues(
@@ -109,8 +109,12 @@ class Amo extends Controller
         $lead->setPrice($price);
         return $lead;
     }
+    /*
+     * Если данный номер сделки есть, то вернется таблица с данными для изменения сделки
+     */
     function update(Request $request)
     {
+
         $leadId= $request->leadId;
         $amoClient = self::init();
         $rowToken = json_decode(Storage::disk('local')->get('token.json'), 1);
@@ -128,6 +132,9 @@ class Amo extends Controller
         $costPrice = $lead['custom_fields_values'][0]['values'][0]['value'];
                 return view('welcome',['lead'=>['price'=>$price,'name'=>$name,'costPrice'=>$costPrice,'id'=>$leadId]]);
   }
+  /*
+   * Обновления сделки
+   * */
   function updateLead(Request $request)
   {
       $leadId = +$request->leadId;
@@ -153,7 +160,6 @@ class Amo extends Controller
                    $customFieldValue = $customFieldValues->getValues()->first();
                    $customFieldValue->setValue($costPrice);
                    break;
-
                case $profitFieldId:
                    $customFieldValue = $customFieldValues->getValues()->first();
                    $customFieldValue->setValue($profit);
@@ -161,13 +167,40 @@ class Amo extends Controller
            }
       }
       $lead->setCustomFieldsValues($customFields);
-
       try {
           $amoClient->leads()->updateOne($lead);
       } catch (AmoCRMApiException $e) {
           printError($e);
           die;
       }
-      return view('welcome', ['response' => 'ok']);
+      return redirect()->route('welcome');
   }
+/*
+ *
+ * Загрузка файла json, получаем массив отправляем данные в createLead создает сделку
+ * */
+function uploadFile(Request $request)
+{
+   $path = Storage::putFile('json',$request->file('file'));
+   $jsonFromFile = Storage::json($path);
+   Storage::delete($path);
+    $amoClient = self::init();
+    $rowToken = json_decode(Storage::disk('local')->get('token.json'),1);
+    $token = new AccessToken($rowToken);
+    $amoClient->setAccessToken($token);
+    $leadsService = $amoClient->leads();
+  foreach ($jsonFromFile as $row)
+  {
+      $lead = self::createLead($row);
+      try {
+          $lead = $leadsService->addOne($lead);
+      } catch (AmoCRMApiException $e) {
+          echo $e->getMessage();
+          die;
+      }
+  }
+  return redirect()->route('welcome');
+}
+
+
 }
